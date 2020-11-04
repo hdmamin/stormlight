@@ -1,0 +1,14 @@
+bin/
+data/
+notebooks/
+scratch/
+notes/
+reports/
+**/README.md
+Makefile
+.git/
+.gitignore
+.idea/
+**/.DS_Store
+*.swp
+

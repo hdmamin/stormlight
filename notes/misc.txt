@@ -1,0 +1,376 @@
+6/4/20
+------
+Saving these regexes for later. Shouldn't need them after cleaning but just in case.
+
+war_pats = {
+    re.compile('\n\n\x0ct t t t\n\n([A-Z])?\n\n\d*\nt t\n\nt t t t\n\n'): r'\n\1',
+    re.compile('(?:WBRT: Prepress/Printer\'s Proof\n\n\x0c)+[a-zA-Z\s\n]*\d*'
+               '(?:\n\nBrandon Sanderson\n\n)?'): BREAK,
+}
+war_rm = ['Wa r b r e a k e r\n\n']
+          
+war_pat_rm = re.compile('t t t t\n\n[A-Z]?\n\n\d*\nt t\n\nt t t t')
+war_pats_rm = ['t t t t\n\n', 't t\n\n']
+
+6/8/20
+------
+brainstorming outputs:
+
+I'm not sure how fast generation will be, but regardless I think it would be best to generate no more than a page at a time to avoid the risk of losing everything if something fails midway through. Therefore, we probably want a wrapper to generate a reasonable block of text and write it to a text file. I think we can hold off on the pdf idea for now since I'm realizing the full book would still end up being mostly nonsense. If I really want to I can work on that later. This "generate and write to file" function can probably be wrapped in a callback to let me monitor training (in fact, I'm pretty sure comet.ML has an integration specifically for storing this type of data). 
+
+The dash/streamlit app is pretty much a necessity since a. I like making them, b. I want to try Streamlit, and c. the interactive part is one of the most fun parts of the process. The question is whether to work on this upfront. My thinking is this:
+-Streamlit is supposedly pretty simple/fast to get started with so it might not be a bad idea to try this early. I can always improve styling and add extra bells and whistles later.
+-I don't have a gpu set up yet. Sure, I could use colab or something but it would be nice to have a more permanent solution (like either aws or something like Paperspace. Need to get this ironed out at work.). But my point is there's no urgency to train something immediately.
+-Building something to interact with the model is one of the more fun parts and working on it early could provide some motivation to continue working on the project and make the model better (bad results are always less fun).
+
+So I think it's clear the conclusion is:
+step 1. Build function to generate text and write to file.
+step 2. Build barebones streamlit app.
+
+To make step 2 more concrete, the user should be able to type in a sentence or paste in a paragraph (or eventually maybe upload a text file? Can think about that one) and generate a paragraph/page/chapter. Maybe the length should be customizable using a Streamlit widget. Another future extension could be to download the generated text (maybe at that stage I can worry about PDF generation and making sure the formatting comes out right, e.g. actual page breaks instead of xxbrxx).
+
+6/13/20
+-------
+-options for dealing with Incendio incompatibilities:
+    -Large updates to incendio where we make everything an instance variable inside training loop and add more callback spots (basically after every line, much like fastai). [Pros: fun, good practice for SWE; Cons: not useful compared to learning existing APIs, more dot access will slow incendio down further]
+    -First train w/ pure pytorch, writing everything from scratch. [Pros: review pytorch basics, avoid getting overly bogged down in issues that are tangential to the project (incendio overhaul); Cons: annoying (I wrote incendio specifically to avoid this)]
+    -Work on fastai integration. [Pros: very useful (learn more about v2 mid-level (or low level?) api); Cons: annoying (I still want Incendio to work), work I've done so far on datasets and tokenizers may not be usable (?), maybe less fun (this is more the case with the high level API though; low or mid level should still be reasonably fun)]
+
+Conclusion: Updating incendio is a nice long-term goal but I shouldn't get stuck here right now. Start with pure pytorch (copy-pasting my work from incendio is acceptable when applicable, though it pains me). Then move on to fastai integration. This way, my work so far isn't wasted. And only using fastai feels a little like cheating. I want to maintain and build my torch fluency to a Research Engineer level.
+
+Related thought - why not just import from incendio but override a few methods as needed? This is probably the way to go initially.
+
+6/16/20
+-------
+-decision: to keep param groups simple in optimizer, maybe best to ignore weight decay entirely? Otherwise, we might have tons of groups for n_bias, n_non_bias, lm_head_bias, lm_head_non_bias, etc.
+    -Or: define each layer as an attribute, use `groups` purely for optimizer param groups. So in that case we could have one group for all bias and layer_norm weights. But what should the LR be for the bias layers - same as the rest of the larger group they belong to (e.g. `lm_head`) or same as their group consisting only of bias and layer norm? Default WD is 0.0 in openAI script so maybe it's best to ignore this for now.
+
+6/17/20
+-------
+EXPERIMENT V1
+
+python bin/s02_run_language_modeling.py \
+--output_dir=data/models/v1 \
+--model_type=gpt2 \
+--model_name_or_path=gpt2 \
+--do_train \
+--train_data_file='data/clean/train_huggingface.txt' \
+--do_eval \
+--eval_data_file='data/clean/val_huggingface.txt' \
+--overwrite_output_dir \
+--block_size=512 \
+--per_gpu_train_batch_size=1 \
+--save_steps=5000 \
+--num_train_epochs=2
+
+GPU memory usage (utilization was mid 90's):
+4452MiB / 16278Mi
+
+CPU memory usage:
+total        used        free      shared  buff/cache   available
+Mem:          30147        2861       20504         324        6781       26435
+
+Notes:
+-roughly 10 minutes/epoch
+-can increase batch size (maybe 3?)
+-can try my SentenceDataset or their LineByLineDataset (currently using chunks which may not be ideal given how I created train/val split)
+
+EXPERIMENT V2
+
+python bin/s02_run_language_modeling.py \
+--output_dir=data/models/v2 \
+--model_type=gpt2 \
+--model_name_or_path=gpt2 \
+--do_train \
+--train_data_file='data/clean/train_huggingface.txt' \
+--do_eval \
+--eval_data_file='data/clean/val_hugginface.txt' \
+--overwrite_output_dir \
+--block_size=512 \
+--per_gpu_train_batch_size=24 \
+--save_steps=5000 \
+--num_train_epochs=2 \
+--sentence_ds
+
+GPU memory usage (94-99% utilization):
+9738MiB / 16278MiB
+
+CPU memory:
+total        used        free      shared  buff/cache   available
+30147        2878       19956         324        7277       26383
+
+Notes:
+-Slower (~20 min per epoch; w/ original bs of 1, it was ~1 hour/epoch)
+
+6/18/20
+-------
+-notes after examining first 2 models using streamlit app:
+    -Little surprised to still see some simple spelling mistakes (e.g. Shallam instead of Shallan). Guessing this would decrease as we decrease randomness in generation (i.e. closer to greedy search)
+    -Lots of \n\n. Check if my dataset left extra newlines in (or if splitlines() removes the \n as I expected, or if it keeps it like hsplit)
+    -While the text is all vaguely stormlight-y, its memory seems extremely short. I wonder if this is because my sentence dataset gives it very short chunks to learn from. On the other hand, V1 used TextDataset. Takeaway: Create new train/val splits that don't take out random sentences, then use TextDataset. This may let us learn better. In fact, do we even need a val split? I'm just training for a set number of epochs, and V2 failed to compute val metrics anyway for unknown reasons. One option would be just to train on everything and use my judgment through the streamlit app for evaluation.
+    -Can also consider what do do w/ mistborn, warbreaker, edgedancer. Should some of these be included? Maybe I should build a little function into the training script that creates the necessary text files based on another command line arg (e.g --stormlight --novellas, or --books "['stormlight', 'novellas']")
+-Additional extension: now that I have the script set up, training more language models should be quite easy. Some ideas:
+    -S&A slackbot (or person-specific) with people's permission, of course
+    -confluence/knowledge_repo bot (just me or everyone)
+    -my sent emails and/or journal entries
+    -code: my github, scrape all of github, find existing dataset (e.g. stackoverflow Q&A pairs), and/or construct leetcode dataset
+    -mma related: Joe Rogan, Brendan Schaub, r/mma
+
+Note:
+Realized pages already end with \n\n so replacing BREAK w/ \n added more newlines than I want. Re-generated train/val files.
+
+EXPERIMENT V3
+
+python bin/s02_run_language_modeling.py \
+ --output_dir=data/models/v3 \
+ --model_type=gpt2 \
+ --model_name_or_path=gpt2 \
+ --do_train \
+ --train_data_file='data/clean/all_huggingface.txt' \
+ --overwrite_output_dir \
+ --block_size=512 \
+ --per_gpu_train_batch_size=2 \
+ --save_steps=5000 \
+ --num_train_epochs=2
+
+ GPU Memory (95-100% utilization):
+ 5800MiB / 16278MiB
+
+ CPU Memory:
+ total        used        free      shared  buff/cache   availableMem:
+ 30147        3049        8887         300       18210       26078
+
+ Notes:
+ -switched to use all available stormlight data (no validation)
+ -replaced BREAK w/ '' rather than '\n' because it looks like page breaks are already accompanied by two new lines (Oathbringer is an exception)
+ -Hoping use of TextDataset combined with the lack of randomly choosing sentences for the validation set will address the issue of the model generating a coherent sentence, then immediately losing its "train of thought".
+ -increase BS to 2
+    -looks like slight speedup (~9 min/epoch) though I'm not sure if paperspace GPU's specs are identical
+
+-try this to address port forwarding issue (think I already did but just in case. Make sure you then start jupyter on port 8889 rather than 8888):
+sudo ufw allow 8889
+
+6/19/20
+-------
+Execute after logging into free paperspace nb to start bash shell (gets rid off all the annoying behavior in paperspace default shell):
+exec /bin/bash --login
+
+EXPERIMENT V4
+
+python bin/s02_run_language_modeling.py \
+ --output_dir=data/models/v4 \
+ --model_type=gpt2-medium \
+ --model_name_or_path=gpt2-medium \
+ --do_train \
+ --train_data_file='data/clean/cosmere_train_huggingface.txt' \
+ --overwrite_output_dir \
+ --block_size=512 \
+ --per_gpu_train_batch_size=2 \
+ --save_steps=5000 \
+ --num_train_epochs=5 \
+ --sample_file=data/models/v4/generated_samples.txt
+
+GPU Memory (95-100% utilization):
+13266MiB / 16278MiB
+
+CPU Memory:
+total        used        free      shared  buff/cache   availableMem:
+30147        4985        16637     324     8524         24797
+
+Notes:
+-switch to larger gpt-medium model (2x as many params; assuming this will be ~1gb :/ , might run out of room in /storage)
+-increase epochs to 5
+-add text generation at each save step
+-added Edgedancer and Warbreaker to training data
+-~26 minutes/epoch
+
+EXPERIMENT V5
+
+python bin/s02_run_language_modeling.py \
+ --output_dir=data/models/v5 \
+ --model_type=gpt2-medium \
+ --model_name_or_path=gpt2-medium \
+ --do_train \
+ --train_data_file='data/clean/cosmere_train_huggingface.txt' \
+ --overwrite_output_dir \
+ --block_size=512 \
+ --per_gpu_train_batch_size=2 \
+ --save_steps=2000 \
+ --num_train_epochs=5 \
+ --sample_file=data/models/v5/generated_samples.txt
+
+6/20/20
+-------
+-cuda error on core machine (causing torch.cuda.is_available() to be False):
+WARNING: infoROM is corrupted at gpu 0000:00:05.0
+
+6/26/20
+-------
+Thoughts on sentiment score distribution:
+-not thrilled with uniform now that I think about it, I think I'd like to see a higher frequency of moderate to strong sentiment scores. The un-scaled compound score looks pretty good (multi-modal around ~.25 and ~.75).
+-I think I'd prefer -1 to 1 rather than 0 to 1. I just checked and compound score actually already is. Maybe that's problem solved.
+
+6/30/20
+-------
+-possible issues:
+    -v5 model apparently does include edgedancer + warbreaker. Thought I removed those prior to training v5. Not necessarily bad but consider training another version without them.
+    -seems like most sliders usually have no impact on generated text. Setting repetition penalty to 1 makes a small difference sometimes (allows us to repeat Kaladin instead of using Kal after first usage), but temperature, top p, max ngram have no noticeable effect (as in the exact same sentence is generated after changing options dramatically). Check to make sure these functions are working correctly and not ignoring kwargs.
+    X -is the markdown object hiding newlines? Or are those removed by the tok.decode() step? [FIXED: when using html, must convert them to <br> tags]
+
+7/6
+---
+-Cloudflare: another service that might help w/ scaling. Need to read more though, not sure exactly what it does.
+
+7/8
+---
+Cleaning up progress file a bit. Some old ideas below:
+
+-idea: create streamlit app to allow users to upload a train file and fine tune LM behind the scenes. Not sure how this would be deployed though (probably not possible to get a gpu on heroku. And we really only want it when called on, not all the time).
+-maybe look into pytorch lightning at some point? [push this to the next project]
+
+X -do a bit more research on different gpu options (paperspace, etc). 
+X -maybe should first try running default script provided. Then can dig more into integrations w/ incendio, then fastai or pytorch lightning.
+~ -decide how to create train/val split. See harry potter example on github.
+X -explore different ways of adding tabs to streamlit
+        X -word counts (user enters a word (e.g. "Kaladin", "whispered", "blushed", etc.) and see how many times it occurs in each book/all books
+        X -plot sentiment scores as a timeseries for each book. Maybe compute score for each sentence bc most of the existing packages were trained on short tweets?
+X -maybe create widget to allow toggling between instant and paused displaying (paused looks cool but could get annoying when debugging)
+X -similar to talktotransformer.com, maybe try to generate in chunks so there's less waiting
+   X -investigate how chunk size affects generation quality
+        X -maybe let user set this via widget?
+    X -seems like for long generated sequences, func gets much slower towards the end. Try to confirm this is expected: check huggingface generate() func source code. I think this makes sense but I want to make sure we're not unnecessarily re-computing the same hidden states again and again. The un-chunked func is faster, though the difference seems to (maybe) decrease as seq len increases.
+X -see if we can get any kind of useful character (as in Kaladin, not as in 'abc') embeddings. May be difficult w/ sub-word tokenization, but maybe we can add or average embeddings?
+X -word count, avg word length, lexical density, etc. by book [did word count, decided against others]
+
+7/17/20
+-------
+Defaults:
+
+Adolin flinched, but he still had to
+pull himself up onto his feet. He'd broken the bridge and was now trapped on it by a pair of chasmfiends that were leaping out at him.
+
+change Repetition Penalty:
+    100
+    Adolin flinched, then turned away.
+    "What?" Adrotagia asked again as she entered the room to see what was going on with Renarin's father and nephews--the two brothers who had
+
+    1
+    Adolin flinched. "That was the most ridiculous thing I've ever heard."
+    "I'm not going to let you kill me," Adolin said. "I'm not even certain that I'll
+    want
+
+    1 again
+    Adolin flinched as a Shardblade appeared in his hands.
+    He spun, dropping the Blade, and hit the ground with a crash.
+
+    "Adolin," a voice said.
+    He turned to find
+
+    1 again
+    Adolin flinched, then turned and dashed away.
+    Adolin's father was a master swordsman. He'd trained with the best of
+
+    3
+    Adolin flinched, then turned and dashed away.
+    "I'm sorry," Adrien said to the king as he ran toward him with
+
+    2
+    Adolin flinched, then turned and dashed away.
+    "I'm sorry," Adrien said to the king as he ran toward the door
+
+    10 (default) again
+    Adolin flinched.
+    "It's all right," Adrien said, stepping forward and taking Shallan by the arm as she tried to rise into her feet--which had been hanging from a hook on one of
+
+    Summary: results are not the same very time even with consistent settings (good). Thinking I might lower the default value bc this avoids the name changing problem and the model's not outputting repetitive garbage (e.g. Kaladin grabbed his spear spear spear and grabbed his spear spear spear spear. spear Kaladin)
+
+change Max N-Gram
+    2
+    Adolin flinched, and Kaladin tried to distract him.
+    "I'll do it," Adrien said suddenly from behind them in the hallway outside of their warcamp."Don't you have any idea how much
+
+    10
+    Adolin flinched at the sudden motion. "Wait!"
+    "That's not what I-- no, that wasn't it," Adrien said quickly to his father as he stepped back from Shallan and
+    Ren
+
+    Summary: Results did change. Results probably more visible with a longer sequence.
+
+change Top P
+    .01
+    Adolin flinched, then turned and dashed away.
+    "I'm sorry," Adrien said to the king as he ran toward him with a gauntleted hand on his sword's hilt--the one
+
+    1
+    Adolin flinched. He was in trouble, but he had
+    to be careful not to let the king get the better of him! "What is it?" He
+    asked loudly enough for everyone else's ears
+
+    Summary: Different results, effect on quality is unclear.
+
+change temperature
+    .01
+    Adolin flinched, then turned and dashed away.
+    "I'm sorry," Adrien said to the king as he ran toward his father's side door--the one that led into Dalinar Kholins'
+
+    1
+    Adolin flinched from the sudden impact, but Kaladin barely kept his attention on
+    the princeling. The assassin's sword dropped into her hand and he swept through them all in an eyeblink; some of their
+
+    .5
+    Adolin flinched, but he didn't retreat. He raised his Blade and
+    charged forward again--this time swinging at the man's helm as it popped free of its mountings on a nearby rock formation! The
+
+change memory
+    10
+    Adolin flinched, then turned and dashed away.
+    "I'm sorry," she said, "but I can't help feeling that you're
+    going to have a difficult time getting the other highprinces to
+
+    100
+    Adolin flinched, then turned and dashed away.
+    "I'm sorry," Adrien said to the king as he ran toward him with a gauntleted hand on his sword's hilt--the one
+
+7/19/20
+-------
+Sample of how to zip files from different dirs (first was run from root):
+
+zip -r storm_tmp stormlight/data/clean/compound_sentiment_scores.pkl stormlight/data/generated
+
+This should zip the non-copyrighted data. It may not compress the size much though since weights are already zipped and zipping the sentiment scores didn't seem to make a huge difference. But it might make for slightly faster and/or simpler downloads.
+
+zip -r data data/clean/compound_sentiment_scores.pkl stormlight/data/models/v5
+
+Example of downloading folder from dropbox. Note the "dl=1" added to the end of the url.
+
+curl -L -o db.zip https://www.dropbox.com/sh/igoku2mqsjqsmx1/AAAeF57DR2ou_nZGC4JPoQKfa?dl=1
+
+Note: after unzipping, files are extracted to cwd. So if our dropbox has this structure:
+
+test-folder/
+    subdir1/
+        -file1.txt
+        -file2.txt
+    -file3.txt
+
+Then curling and unzipping will give us stormlight/file3.txt, stormlight/subdir1/file1.txt, and stormlight/subdir1/file2.txt. The name we specified in the curl command has no effect. We need to find a place to specify this in the unzip command, I think.
+
+Update: solved w/ following command
+
+unzip curl_dirname.zip -d new_dirname
+
+Putting it all together:
+
+curl -L -o tmp.zip https://www.dropbox.com/sh/y4i0hd2bs7cgfk8/AABjyZj77X-qRWKcoYHBxyvla?dl=1
+unzip tmp.zip -d data
+rm tmp.zip
+
+10/31/2020
+----------
+sample command to make app accessible:
+ngrok http -auth="username:password" 8080
+
+As a reminder, we should first start a tmux session, then run the app either with docker or simply `streamlit run`, then in another pane run the ngrok command above. Then detach from the tmux session. I think that should work, though I'm not sure what happens when the computer goes to sleep. One other reminder: use the https version of the public URL.
+
+note: I noticed the app.sh "build" command checks if the data directory exists before deciding whether to download data. I should check if this causes the data to be downloaded on every build or if it's somehow maintained.
+

@@ -1,0 +1,4 @@
+recursive-include stormlight *.py
+include README.md
+include requirements.txt
+

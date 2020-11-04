@@ -1,0 +1,407 @@
+5/30 - Planning
+---------------
+Deadline: 11/15/20 (originally was thinking 3 months, but don't want time pressure to be an issue. This date gives us 24 weeks and ensures that I finish before Rhythm of War is scheduled to be released.)
+Final Product: 1 or more of the following:
+    -PDF of fully generated Stormlight/Sanderson book
+    -Dash/Streamlit app to generate chapter/page/snippet of text
+        -app to explore/visualize character embeddings
+    -Some other kind of interactive app
+
+    Optionally, this could include 1 or more of the following:
+    -Blog/Reddit post sharing results
+    -Basic EDA (common words, mentions per name, lexical density)
+    -Style transfer - convert user-input snippets to Sanderson's voice or book passages to other author's voice
+Concepts: Language Modeling, Text Generation
+Tech: 
+    -CometML - Set up experiment-monitoring environment. This should come in handy for later experiments.
+    -Transformers (GPT2) - get more comfortable with HuggingFace and adapting to new APIs in general
+    -FastAI - Get more comfortable with mid-level API (custom tokenizer, model, data augmentation, etc.)
+    -PyTorch (incendio) - maintain and improve core skills
+    -Streamlit - Try out API and see how I like it compared to Dash.
+    -Makefile - get more familiar with this and hopefully build out better S3 syncing functionality.
+    -Documentation generation - Supposed to be built in w/ nbdev but this didn't seem to play nicely w/ cookiecutter.
+Requirements:
+    -Implement >=1 custom idea (architecture, data sampler, augmentation, loss function, etc.)
+
+5/31
+----
+Progress: Fixed encoding issue (shell script now converts to ascii), found new start/end indices for each book, started building torch LM dataset.
+
+Plans: Work on LM dataset (should be pretty simple: GPT2LMHeadModel lets us pass in the sequence itself as labels and the shift happens inside the network).
+
+6/1
+---
+Progress: Dataset progress. Troubleshooting issues loading pretrained tok + model related to Transformers version.
+
+Plans: Confirm what model outputs are and how generate() works. Try generating some text with the untuned model.
+
+6/2
+---
+Progress: Learned and recorded outputs of predict() and generate(). Read a bit about different options affecting text generation quality and experimented a little. Identified data cleanup to do in Warbreaker and started working on regex.
+
+Plans: Finish regex to rm extra lines from each page of warbreaker and combine w/ start/end idx to create a "load_warbreaker" function. Investigate other generated txt files to see which ones require custom cleanup.
+
+6/3
+---
+Progress: Regex for warbreaker page break. Progress on warbreaker chapter break regex and general load_book() func.
+
+Plans: Finalize warbreaker cleaning and move on to edgedancer.
+
+6/4
+---
+Progress: Changed approach and did some manual text cleaning with vim and sed. All books should hopefully be fairly clean now, though start and end indices will have changed.
+
+Plans: Clean up nb03. Create func to load all clean books. Find new start/end indices.
+
+6/5
+---
+Progress: Found new indices, defined some new constants in utils for ease of use, and built functions to load a single book or all books in a single function call. Little bit of notebook cleanup.
+
+Plans: Revisit question of what format gpt-2 needs text in. Update LMDataset to use new book loading functions and manipulate data into usable format (e.g. getitem returns single sentence, single line, single page, or fixed length chunk of characters). Maybe some notebook cleanup. 
+
+6/6
+---
+Progress: Decided to proceed by splitting text into equal length sequences of size 512 for dataset (avoid padding; I think the model can accept several types of inputs but I'm pretty sure this is a valid option). Updated dataset to use book-loading function and handle tokenization and sequence generation.
+
+Plans: Figure out how to add special tokens to model and do it. Make sure I'm able to compute loss via model's forward pass and generate text using `generate` method. Maybe try adding option to subset each book in DS for faster experimentation. Also try creating a dataloader with shuffle=True to make sure that works as expected.
+
+6/7
+---
+Progress: Added subsetting functionality to LMDataset and filled out last batch w/ endnotes. Pared down tokenizer special tokens and added new special tokens to model and troubleshot issues w/ new tokens. Notebook cleanup.
+
+Plans: Port everything to lib and write docstrings. Brainstorm about what output format should be: write to text files, write to PDFs, dash app, streamlit app? Then consider how long it would take to get this built - if quick, maybe good to get the whole pipeline upfront. If slower, work on it later while waiting for a model to train. Either way, we probably want to try it with the pre-trained model before tuning a new one.
+
+6/8
+---
+Progress: Added functions to lib and wrote docstrings. Wrote func to generate text to file. Brainstormed and planned about end product.
+
+Plans: Port `generate_to_file` and write docstring (maybe read and/or experiment a bit more first to find good better options for generation). Investigate why generation seems to be slower now (~2.5 sec to generate -> ~19 sec). Create file for streamlit app.
+
+6/9
+---
+Progress: Built basic streamlit app for text generation. Wrote wrapper function to load tokenizer and model and align vocabularies. Added basic text download.
+
+Plans: Read more about streamlit caching, persistence, and see if there's a way to change the refresh rate (seems like there's a lot of latency in converting user input to a variable we can work with) and/or prevent the model+tokenizer from being reloaded every time. Add widgets to let users choose more/less randomness (revisit blog post on text generation), maybe as part of a sidebar. Maybe make the download link into a button. [NOTE: putting some of yesterday's tasks on hold for a bit. Can't train yet anyway so fine to work on streamlit for a bit.]
+
+6/10
+----
+Progress: Cached loading of model and tokenizer. Printed user-input text in bold. Added sidebar and widgets to control most other generation parameters. Wrote docstrings for 2 app functions. Re-read parts of blog post on text-generation to get a better sense of what each option does.
+
+Plans: See if LM model and DS are compatible with incendio. Next, either update incendio to make it compatible or see if I can get it working w/ fastai. Maybe start on a text generation callback to check in every n epochs.
+
+6/11
+----
+Progress: Indirectly related, but started removing private dependencies for Incendio (basically have to make a way to upload to s3 without accio, otherwise can't install without GG creds). Added github link to app. Generated 3 different sizes of LM datasets and made a slight tweak to allow DS to return tuple. Experimented with model wrapper to help w/ incendio training loop compatibility.
+
+Plans: Figure out how to fix tuple issue (either update incendio loop and/or return multiple items from DS getitem). Hopefully get incendio dependency issues ironed out and installed on my personal laptop, then test tiny DS in train loop.
+
+6/12
+----
+Progress: Created GG-free version of Incendio and created a trainer. Experimented a bit with a few tweaks on the model wrapper, loss wrapper, and dataset to try to make incendio play nicely w/ transformers. Fixed bug with loading tokenizer + model. 
+
+Plans: Troubleshoot issue where model.forward returns 3 items but trainer.model.forward returns 2 items. Fix <endoftext> decoding in streamlit app. Maybe look into issue with `delegate`. Note: it'll be a long driving day so maybe try to brainstorm project extensions, think of what could cause this weird bug, or miscellaneous DL stuff (combining axial encodings w/ bloom embeddings? Not directly related but maybe I could find a way to incorporate it into the project).
+
+6/13
+----
+Progress: Replaced EOS token in app output. Cleaned up/refactored app slightly. Confirmed source of model.forward bug (it's what I suspected) and wrote a loss function wrapper that deals with this, but ultimately realized Incendio will require major changes if I want to get this to work with it (for example, we still have the issue that the validate method acts on yb and we don't have a way to change yb via callbacks before that happens - it's a local variable and we don't have an "after_loss" or "after_step" callback. Brainstormed how to move forward with this (see misc.txt).
+
+Plans: Debug baffling issue where TransformersTrainer model.forward returns loss even in train mode and the trainer's fit method seemingly can't return anything? Continue working on patched train and validate methods from incendio integration.
+
+6/14
+----
+Progress: Fixed handle_interrupt() bug which prevented fit() from returning any value. Found bug using delegate() and inheriting from BaseModel (think nn.Module does something in __call__ that breaks getattr). Experimented with different ways to wrap transformers model and ultimately found simple layer groups of Transformer and LMHead won't work because weights are shared with the input embeddings. Fiddled w/ Trainer a bit until the loop now seems to work (slowly)!
+
+Plans: Look into training example to see how they chose param groups for optimizer and how easy it would be to implement. Look at what hyperparams are recommended for GPT2 LM fine tuning. Maybe examine GPTModel forward() more closely and see how hard it would be to define layer groups manually (maybe one for input emb, positional emb, and LMHead, and a second for everything else? Defined using named_children() method). Try to reach a decision (or at least do some research) about GPU options.
+
+6/15
+----
+Progress: Rewrote GPT2 wrapper to allow for easier use of layer groups w/ incendio.
+
+Plans: Continue troubleshooting whether new gpt2 wrapper is working correctly. Already confirmed weights seem to be the same in wte and wpe but should check the rest since loss was quite a bit higher when I tried the wrapper on a batch. Also confirm whether LMHead passes in `past` arg somewhere and add that functionality if necessary.
+
+6/16
+----
+Progress: Debugged difference between wrapped model and gpt2 model and fixed issue (was using original hidden states as input to each attention block instead of using new hidden for each one). Confirmed that passing in `past` works the same for wrapped model as in gpt2 model (though differently from not passing in `past`). First go at GradientClipper callback (untested for now). Found default LR in hugginface training script.
+
+Plans: Update incendio w/ `after_backward` callback, both in training loop and in callback interface. Notebook cleanup, port funcs to various py files, write docstrings.
+
+6/17/20
+-------
+Progress: Lots of time exploring different gpu options and trying to set up paperspace machine (remote jupyter procedure that works on ec2 doesn't let me connect here; messaged support). Created new train/val files for hugginface default lm fine tuning script (replaced xxbrxx w/ \n, randomly assigned sentences to each split. Prob best to avoid using TextDataset bc there may be missing chunks of text in train set). Downloaded default train script and added new SentenceDataset. Trained 2 models using Gradient notebook: 1 w/ text dataset by accident, another w/ SentenceDataset.
+
+Plans: Figure out how to download results. Examine training artifacts. Hopefully load model in streamlit and get a feel for results. Maybe look into default generation script (I think hugginface provides one).
+
+6/18/20
+-------
+Progress: Downloaded results and updated app to allow loading different weights. Played around with v1 and v2 a little. Generated new training file (no val set) with all stormlight books, fixed issue leading to too many line breaks, and trained another model using TextDataset. (No val metrics, obviously, but from playing in streamlit it seems like this strategy sort of worked how I hoped.) Emailed paperspace with more questions. Started setting up dotfiles.
+
+Plans: Finally try to find a workable dotfile solution once and for all. Add text generation callback to script and train a Cosmere model (include edgedancer and warbreaker; undecided on mistborn). Try training for more epochs (blog post examples did 2-5, default script is 1, I've been using 2).
+
+6/19/20
+-------
+Progress: Got remote jupyter working on paperspace machine. Switched dotfile setups and got it working locally and on both paperspace machines (GG machine may still require some experimenting - not sure what will happen when I try to pull updates). Tweaked text generation func and added to s02 during training (broke on first try but I think I fixed it). Trained gpt2-medium on 5 books (all except mistborn), and while training failed halfway through, 2+ epochs still provided pretty decent results. Explored them a bit w/ streamlit.
+
+Plans: Clean up paperspace data dir (probably over the limit - not sure what that will do) and decide what to do: delete files that I've downloaded or move over to Core machine which has 50 GB storage? Maybe try training another model for longer using (hopefully fixed) text generation callback. Explore possible methods of adding tabs in streamlit.
+
+6/20/20
+-------
+Progress: Frustratingly stuck on dumb issues: github authentication (ssh can't access id_rsa file despite changing permissions? finally got https to kind of work but have to enter username and auth token each time which is annoying). Installed pyenv and some packages on core machine. Both notebook and core machine fail to find gpu (core shows something is corrupted? I hate paperspace). Updated github link in app. Progress looks very minimal but I actually spent hours on this.
+
+Plans: Take a break from troubleshooting technical issues and start computing sentiment scores by sentence/page for each book. Maybe start working on adding tabs to app. Try to do something fun to regain excitement after today (can take a couple days off from that before revisiting).
+
+6/21/20
+-------
+Progress: Tweaked load_book and load_books functions. Compared different options for computing sentiment scores (mostly benchmarking speed) and explored options for what chunk size to compute scores for (sentences, lines, pages, "paragraphs", etc.). Computed first round of scores and started plotting. Fought a bit more with cuda issues (think it's a similar issue I was getting on EC2 a while ago where driver version is incompatible w/ cudatoolkit version. Not sure how gpt fine tuning worked).
+
+Plans: Figure out how to scale and combine various sentiment scores (check if naivebayes needs to be explicitly fit first; results look odd).
+
+6/22/20
+-------
+Progress: Added option to load a small subset of each book. Fixed some import bugs, finalized SentimentScorer, and fleshed out s03. Set up new GPU bc paperspace logged me out of old notebook and wouldn't let me back in. Ran sentence-level script and downloaded sentiment scores from paperspace machine.
+
+Plans: Explore sentiment score DFs (they're grouped differently than the page-level dicts I computed earlier so plotting code will look a little different). Continue investigating range, mean, std. dev., correlations, etc. to determine ways to calculate a good compound score.
+
+6/23/20
+-------
+Progress: Explored computed sentiment scores and experimented with a couple ways of computing compound scores, scaling scores, and plotting results.
+
+Plans: Finally get to task of trying to add another tab into streamlit app. See what plotting libraries are compatible - plotly would be nice (interactivity, familiarity). Hopefully start building new tab.
+
+6/24/20
+-------
+Progress: Tried bokeh tabs but abandoned that in favor of streamlit's built-in radio button navigation. Refactored app pages and started experimenting with different options for line plots for sentiment page. Leaning towards plotly over streamlit (limited customization), altair (not as familiar with it and wasn't a huge fan last I tried), and matplotlib (limited interactivity).
+
+Plans: Work on plotly line charts. Format titles in book multi-select box and chart titles. Also order books by their order in the series.
+
+6/25/20
+-------
+Progress: Added written explanation and sidebar to sentiment tab of app. Added axis labels to line charts. Updated selection widget and plot titles to use full titles. Saved new version of sentiment scores in data/clean and loaded them into the app that way instead of from multiple DFs.
+
+Plans: Experiment a little more with different versions of compound scores (I think I'd prefer a scale of -1 to 1 rather than the 0-1 that scaled_compound_score currently provides). Still considering whether I want uniform, normal, or multi-modal distribution. Save final choice and update app. Add documentation to app demonstrating how to run it (e.g. optional param for model directory, not model file). Maybe start experimenting with generating text word by word.
+
+6/26/20
+-------
+Progress: Experimented a bit more with sentiment score transforms and built a satisfactory variation (zero mean and median, uniformly distribute between -1 and 1). Decreased line chart padding and margins. Experimented a bit more with different moving average/EWMA options. Revised description for sentiment page. Added word counts page with basic functionality displayed in a streamlit table.
+
+Plans: Brainstorm and add some more features to the word counts page (tfidf scores? Most common words? Lexical density? Avg. word/sentence lengths?).
+
+6/27/20
+-------
+Progress: Added option for stricter search on word counts tab (checks for word boundaries). Added row showing total word count per book. Added plotly bar chart showing term counts per book. Polished sidebar text on Text Generation tab.
+
+Plans: Work on generating and displaying text word by word so we can see the model write in real time. If extra time, possibly look into character embedding idea (probably play around in a NB first).
+
+6/28/20
+-------
+Progress: Made some tweaks to text generation function. Built out most of wrapper to generate in chunks and display results in real time.
+
+Plans: Continue honing pause time for live_generation func. Double-check func to make sure sequence lengths are correct, the newly generated words are being included as inputs at the next generation step, and look out for any other bugs. Add to lib and incorporate into streamlit app (try it out there before writing docstring: might find some changes to make. Other suggestions: start by adding a second input box on tab so I can compare the old method to this one). 
+
+6/29/20
+-------
+Progress: Built new version of live_generate that works with streamlit (version w/ print() doesn't work because streamlit forces us to print on new lines every time). Tried many different ways to get generation to work in real time without excessive new lines or endless horizontal scrollbars and FINALLY got something working.
+
+Plans: Lots of cleanup needed in generation.py. Move live_generate streamlit variant function to modeling.py? Write docstrings for both versions. Maybe add switch to toggle between live typing mode (fun) and generate all at once mode (significantly faster, though it feels slower because there's nothing to read while you're waiting).
+
+6/30/20
+-------
+Progress: Some cleanup in generation.py (moved live_st_generate to modeling.py). Found and fixed issue causing new lines to be removed. Briefly experimented with keeping special tokens but decided to remove this option. Added option for live typing or generate all at once.
+
+Plans: Docstrings for generation functions. Investigate if live_generate() can be refactored to work w/ streamlit now that I found a workable method (presumably would pass md.markdown as write_fn). Otherwise, there are a couple other options to explore: 1. rendering text character by character instead of word by word, and 2. Setting a max memory length so even if we generate 300 words (for example), we only look at the last 50. This should significantly speed up generation and would make it feasible to generate even longer sequences, but it's possible quality might decrease.
+
+7/1/20
+-------
+Progress: Wrote docstrings for two live generation functions. Started exploring character embeddings.
+
+Plans: Research deployment options (my standard choice, heroku, might not allow such a big model. It's probably too big for a raspberry pi as well. Look into zeit/render, paperspace, floydhub, other?). Flesh out embeddings distance function to work for words w/ different numbers of indices and experiment a bit (maybe with some non-name words).
+
+7/2/20
+------
+Progress: Fleshed out distance function and explored character embeddings a bit (not great). Loaded them into incendio embeddings objects and looked at nearest neighbors. Plotted 2d projections. Started working on 3d projections.
+
+Plans: Fix 3d plotting issue and decide if embeddings are good enough quality to add as a feature in the app. Maybe get to deployment research.
+
+7/3/20
+------
+Progress: Rebuilt new version of live_st_generate to allow different memory sizes for different generation speeds (and possibly qualities). Also adjusted it to print character by character and tuned typing speed. Added widget to control memory size. Fixed 3d plotting and improved both 3d and 2d plotting. Explored more embeddings and tentatively decided that they're not quite useful enough to justify adding to the app. Little bit of deployment research.
+
+Plans: Clean up modeling.py and write new docstring (probably can copy over much of old one for live_st_generate(). More deployment research and document it.
+
+7/4/20
+------
+Progress: Spent quite a while looking at different deployment options with little success. Tentatively decided to try gcloud app engine (assuming credits come through) and spent a while making and updating docker file, adding app.yaml, and generally trying to get everything set up. Docker container runs fine locally but gcloud deployment results in permisisons error. Added docstring and did some cleanup on live_st_generate(). Adjusted app code to load fine tuned weights by default (just in dockerfile). 
+
+Plans: Investigate gcloud deploy error. Upload model weights to gcloud. Make sure paths work correctly for loading model and text files.
+
+7/5/20
+------
+Progress: Fixed some gcloud issues but not all (realized we need to rename app to main.py and somehow make an `app` object available in it - straightforward for flask but not sure what the streamlit equivalent is since that layer seems to be hidden from us). Ultimately got annoyed with the increasing number of apps I was being charged for and just deleted the whole project to get rid of them (remaining candidates, roughly in order to try: private laptop, ec2 (straightforward, not free though; maybe put up temporarily), give GCP another shot w/ bookmarked video tutorial, azure). Spent a while researching these options with minimal progress. Semi-related: read remainder of Annotated GPT2 blog post and worked on coding up implementations of Multi-Head Attention and other transformer components. Started writing reddit post. Tried to record a screencast and identified 2 new issues: 1. it seems that I can't save a screencast. The simplest method may be to use mac's built in screen recorder rather than streamlit's. 2. Annoyingly, text generation seems to have become extremely slow for unknown reasons. The most obvious cause would be that I unintentionally changed the default memory size to be very large, but so far I can't find anywhere where that's the case. 
+
+Plans: Investigate issue 2. If fixed, create 3 screencasts (1 for each tab). Look into options for load balancing/autoscaling of some sort for streamlit app.
+
+7/6/20
+------
+Progress: Set up git, dotfiles, docker, etc. on old laptop. Made makefile and fiddled around a bit to get paths working with setuptools. Added data to google drive. Identified 2 docker related issues and started working on them: 1. data dir is not accessible inside container. Think volume should solve this but haven't confirmed yet since other issues were interfering. 2. when using load_books() func inside docker, path resolves to where the package was installed rather than where it was run. Not sure why this issue hadn't occurred in the past, need to investigate. 3. Error loading array in sentiment tab. Think this is a pickling issue related to pandas or numpy version, but need to confirm. Updated requirements file to reflect this.
+
+Plans: Continue trying to get the app running in docker on old laptop. If time allows, start looking into some kind of autoscaler/load balancer.
+
+7/7/20
+------
+Progress: Identified and fixed issue with model loading (docker was limiting itself to 2GB ram by default so I increased it to 5. Weirdly, docker stats shows memory usage settling in around 1.63GB /shrug). Fiddled with dependencies and finally fixed array loading error in sentiment tab.
+
+Plans: Fix book loading issue in word counts tab. Try ngrok or similar to get app running on old laptop.
+
+7/8/20
+------
+Progress: After much struggle, finally ironed out all docker issues (moved everything up a directory, mounted data, and installed stormlight lib locally instead of with pip so paths work).
+
+Plans: Add widget on sentiment tab to filter scores to a subset (makes for more interpretable graphs). Try ngrok or similar method to get app running on old laptop.
+
+7/9/20
+------
+Progress: Added widgets for "first n" and "last n" sentences on sentiment tab (haven't implemented logic yet though, and might end up tweaking the selection method - this would be a lot easier if the books were all the same length). Added a second line to each chart showing a less smoothed version of the timeseries and messed around with different opacities and colors. Adjusted positioning of new legend.
+
+Plans: Add functionality to first n/last n widgets. See if I can make the sentiment charts wider. Look into plotly logic to make sure the EWMA min_periods isn't messing up my x axis.
+
+7/10/20
+------
+Progress: Tried implementing first_n/last_n widgets but ultimately changed the setup a little bit: added multiple choice widget, then a direction-agnostic nrows widget. Made plots wider. Tuned default choices for window size and EWMA period.
+
+Plans: Update text on page to reflect recent updates to window size and EWMA period. Look up min_periods param for pandas ewma. Maybe start looking into ways to add hover tooltips for streamlit widgets.
+
+7/11/20
+------
+Progress: Updated text descriptions in sentiment tab. Did some research and found there is not yet a native way to implement widget tooltips (maybe can somehow wrap a widget and inject custom html/js?). Got ngrok working on old laptop and was able to connect remotely, but app seems unable to handle multiple users at once. Recorded new demo videos for word counts and generation tabs. Confirmed min_periods param is working as expected. Tried switching n_sentences number input widget to slider but didn't like the result (very imprecise, max length is very high but we usually want a small number). Updated a few text references and variable names to refer to "span" param instead of "period" in EWMA.
+
+Plans: Investigate custom options for creating widget tooltips. Learn about load balancing options.
+
+7/12/20
+-------
+Progress: Found way to create hoverable CSS tooltips, then created stylesheet and function to load it in main app. Started adding tooltips to generation and sentiment tabs.
+
+Plans: Adjust tooltip implementation so that mouseover works on widget, not offset (maybe look at css I used for old causal language flask app). Read/watched some resources on load balancing but decided to hold off for at least a few days while I try to finalize the app.
+
+7/13/20
+-------
+Progress: Started integrating css balloons I used in causal language app. Developed a way to hide the built in widget title and add a new one with a tooltip which makes the hovering more natural.
+
+Plans: Continue investigating how to change balloon border color. Refactor app a bit (maybe create a new page_utils.py instead of passing globals to every page). Finish my css wrapper functions and make sure they work.
+
+7/14/20
+-------
+Progress: After much experimentation, hover balloons are coming together. Got them to be the right width and centered above the text. Updated all tabs to use new balloons. Refactored some css-wrapping py functions into page_utils.py.
+
+Plans: Try to add option to customize widget alignment (left/center). Possibly take on other widget issues: can no longer move widget titles very close to widget (I'm sure this used to work, can't figure out what caused it to break), and border color.
+
+7/15/20
+-------
+Progress: After some more experimenting, decided to go with red balloons with white text. Refactored css and py widget function to have two different css classes, 1 for sidebar and one for main page. Tried out different options for displaying balloons on the side, narrower balloons, etc. and found streamlit breaks several of the options from balloons.css, but finally got something usable working. Revised tooltip explaining ewma span. Found and fixed bug in text generation (incompatible with html() func). Did a little bit of code cleanup.
+
+Plans: Write tooltip annotations for the widgets on the counts page. Fill out some of the many missing docstrings. Consider doing some restructuring to make services repo a little cleaner.
+
+7/16/20
+-------
+Progress: Wrote annotations for the two checkboxes on counts tab and changed default values. Removed utils file and moved page dict to main app file and renamed page_utils. Fixed quotation marks in various annotations by using curly quotes (couldn't get escaping to work otherwise). Wrote docstrings for html and widget functions.
+
+Plans: Finally test text generation options (seems like some of them have no effect, though maybe that's just because the trained model already is pretty confident in its answer. Maybe streamlit also sets a random seed? See if this changes in jupyter notebook).
+
+7/17/20
+-------
+Progress: Tested changing different generation options (results did change, though sometimes it's hard to tell if it's systematically different (i.e. just a different result do to random variation, or actually more/less random/repetitive etc.). Adjusted some defaults (lower repetition penalty, higher default and max sequence length) and slightly increased typing speed. Changed page order to go from most intense to least. Changed length slider to number input to handle wider range.
+
+Plans: Polish up repo (more descriptive readme?). Possibly work on blog/reddit post. Maybe record a couple more videos and/or work on converting them to gifs or finding workarounds to embed videos in github markdown.
+
+7/18/20
+-------
+Progress: Researched different options for gif recorders and movie to gif converters, tried several, and settled on Monosnap. Recorded a few new gifs and added them to project readme. Found and fixed a bug with generation tab's default repetition penalty value. Deleted some old css and related functions. Renamed page names in nav menu. Set up git large file storage to handle large gifs. Added gifs to readme and polished up text a little. Started documenting how to run the app.
+
+Plans: Flesh out documentation on how to run the app. Consider if there's a way to let the app download the necessary data without making it available to the public (e.g. avoid copyright issues). Consider whether it's worth working on blog post now or wait to see reddit guidelines.
+
+7/19/20
+-------
+Progress: Uploaded model weights and sentiment scores to dropbox. Wrote script to download weights if necessary after building docker image. Updated documentation for running the app locally. Did some directory cleanup.
+
+Plans: Project retrospective. I decided to wait to write a post until r/stormlight_archive posts guidelines (if they do end up having a contest and if this kind of work qualifies). Optionally, I can start brainstorming ideas for my next project.
+
+7/20/20
+-------
+Progress: Project postmortem. Decided to extend the project another day or two to try to generate a longer piece of text, probably using the Rhythm of War prologue. Maybe also record a new gif for the text generation example for the readme since I realized this one doens't show much stormlight-specific stuff.
+
+Plans: Write script that lets you provide input either from the command line or from a text file, then generates output and saves text file.
+
+7/21/20
+-------
+Progress: Wrote script s04 to generate text. Briefly experimented with different gif sizes (git LFS ran out almost immediately) and tried gif compression. Generated and saved 400 word token sequence from mostly nothing (prompt: "Kaladin charged"). Attempted to get paperspace running again but old gpu was unavailable and new one threw error. Saved RoW prologue for possible generation prompt.
+
+Plans: Look more into gif solutions. Think I'll consider this done once I fix that since longer generation experiment today didn't work so well.
+
+7/22/20
+-------
+Progress: Recorded new gifs with kap (much smaller) replaced these in the readme, and got rid of git LFS (I think). App is running locally with ngrok and accessible at http://3e683d24956f.ngrok.io/, though it's only accessible when the laptop is awake (multiple users seems to work, though I can't tell if it slows things down or not). Done!
+
+Plans: Stormlight is officially done (except for the small matter of the Reddit post, but that needs to wait for further instructions). Now the next step is to start brainstorming ideas for the next project (I think a reasonable goal is to be ready to start on Saturday August 1st).
+
+Postmortem (7/20)
+-----------------
+Much of this content is pasted from the planning entry filled out on 5/30. Updates are in square brackets.
+
+Deadline: 11/15/20 
+    [Finished 7/20/20, way earlier than expected. This is partly because I intentionally set a generous deadline to avoid time-induced stress and also partly because I reduced the scope of the project in a way - while I experimented with custom datasets and the like, it ultimately seemed dumb to re-invent the wheel here when Huggingface provides a fine-tuning script that already implements a lot of nice functionality (learning rate scheduling, parameter groups (though mostly for weight decay), etc. Still, I think it's fair to say I was pretty productive. This is definitely a win.]
+
+Final Product: 1 or more of the following:
+    -PDF of fully generated Stormlight/Sanderson book
+    -Dash/Streamlit app to generate chapter/page/snippet of text
+        -app to explore/visualize character embeddings
+    -Some other kind of interactive app
+    [I set aside the idea of generating a whole book - I think the compute needed for that would be pretty insane. Although...inference can be done on CPU. A whole book is excessive, but maybe a few pages? I guess the issue is the generated text is fun but not quite coherent enough to justify a long narrative. It kind of loses its charm after a few paragraphs, I feel. Still, I'm tempted to add a generation script and see what happens. This probably means extending the project a few days, but I guess that would be fine. Feeding it the Rhythm of War prologue might be a fun way to go, thoughit would be hard to avoid reading it if I do that. At this point, I think I did save a passage of 300 word tokens (not sure if that's the exact length, but probably). 
+
+    The streamlit app for text generation is definitely satisfied. I explored the character embedding idea and was on the verge of adding it to the app, but ultimately held off. Quality just wasn't quite good enough with the nature of sub-word embeddings. I did add 2 other interactive tabs though. Overall, while this fell a bit short of the stunning outcome of generating an entire book, I think it's fair to say this was soundly satisfied.]
+
+    Optionally, this could include 1 or more of the following:
+    -Blog/Reddit post sharing results
+        [not done yet but planning on reddit post]
+    -Basic EDA (common words, mentions per name, lexical density)
+        [honestly didn't do a ton here, but I think the work with word counts and sentiment scores qualifies, as well as the experiments with character embeddings]
+    -Style transfer - convert user-input snippets to Sanderson's voice or book passages to other author's voice
+        [Skipped. An interesting idea but worthy of its own entire project if I want to pursue it at some point, so squeezing it in as an extra was not in the cards.]
+
+Concepts: Language Modeling, Text Generation
+    [I think there was some progress here. I learned some relevant concepts like top k/p sampling, softmax temperature, and weight tying (may need to refresh my understanding of that a little bit) and had to think about issues like what is the appropriate length for sequences in a language model. I didn't build anything super low level (aside from the dataset) since Huggingface already provides a language model implementation, but I did end up going through the code line by line and plan to more with the Annotated GPT2 blog post. GPT2 seems a lot less technically intimidating now, though I'm still a bit baffled as to how the researchers identified all these things as good ideas (e.g. the fan out -> fan in layer, as I call it. Just why?). Overall, a decent outcome.]
+
+Tech: 
+    -CometML - Set up experiment-monitoring environment. This should come in handy for later experiments.
+            [Skipped. I have tried this out on toy examples while developing incendio though. Still want to get this (or a similar service like mlflow) working eventually.]
+    -Transformers (GPT2) - get more comfortable with HuggingFace and adapting to new APIs in general
+        [Definitely made some progress with Huggingface, not sure about new APIs in general. Fastai2 remains a bit intimidating and I didn't end up pursuing that integration, at least for this project. I'd still like to get comfortable with that eventually.]
+    -FastAI - Get more comfortable with mid-level API (custom tokenizer, model, data augmentation, etc.)
+        [Didn't do this at all. A bit disappointing, since this would probably be one of the more valuable skills to develop. Writing my own stuff from scratch is fun but knowing how to use the best tools effectively is more useful.]
+    -PyTorch (incendio) - maintain and improve core skills
+        [Worked a little bit on this, mostly just enough to realize I need to add way more callbacks if I want to use this consistently. I now see why fastai adds callbacks after every line of code. Slightly disappointing that my framework is still so inflexible despite that being the main goal.]
+    -Streamlit - Try out API and see how I like it compared to Dash.
+        [Nailed this one. Comfortable with streamlit now, and not just basic features: implemented some fancier features like tabs, file downloads, and custom stuff like annotated widgets and live typing effects when updating text. Streamlit is awesome.]
+    -Makefile - get more familiar with this and hopefully build out better S3 syncing functionality.
+        [Did create a makefile, mostly just to make a todo list and make pypi dist. I think that works but need to check. No s3 syncing functionality because I didn't end up using s3 for cost reasons.]
+    -Documentation generation - Supposed to be built in w/ nbdev but this didn't seem to play nicely w/ cookiecutter.
+Requirements:
+    -Implement >=1 custom idea (architecture, data sampler, augmentation, loss function, etc.)
+        [Skipped entirely. Sad, but this could make up its own project. Still, it seems like a wasted opportunity to train a bunch of models without experimenting with any of my custom ideas.]
+
+[Takeaways]
+I thought about grading this but decided that might take away some of the fun. Instead, I think I can just lay out some basic thoughts summing up what went well and what did not.
+
+My progress tracking system was excellent. I didn't miss a day and I wrapped up the project faster than expected (pending my new plans to write a text generation script and save a longer text sample based on the Rhythm of War prologue). I'm happy with my progress using Huggingface and learning about text generation options. I made fantastic progress with streamlit.
+
+Drawbacks: the lack of incendio/fastai/pytorch lightning integrations was a bit of a copout, though an understandable one (even if re-inventing the wheel, it seems sensible to first start by trying the built-in script to make sure everything's working before making changes. Once I got everything ironed out there, I had already trained 5 models and realistically adding fastai integration would likely have little effect. If you're gunning for SOTA on some task, maybe the extra 1% performance gains are worth it, but for this project I was already getting decent quality text being generated, and without a great performance metric (and lack of a validation set for later runs), there wasn't a huge motivation to squeeze out those performance gains). The other main disappointment was the lack of custom functionality. I did build the custom dataset and text generation callbacks, at least, and there was lots of custom streamlit functionality. But I think this cements the idea that my next project must have this as a core requirement. I put it in the "nice to have" bucket here so I can't complain too much. I just need to explicitly make it the focus next time if I want it to happen. Finally, the lack of a true deployment is pretty disappointing, but I think that could have been resolved if I was willing to spend the money. Running the docker container on an ec2 seems simple enough. Now, whether it would have any ability to handle multiple users, I have no idea. It seems like this will be a common issue if I build more of these apps. Transformers just take up a ton of memory and most free options are pretty limited. This is perhaps a message that I should select a non-app focused project for most of my projects (or ones that don't require a large model).
+
+Overall, not the most technically challenging project but the outcome was pretty cool, streamlit gains were solid, and I'm more confident about GPT2 and transformers conceptually. Not a home run, probably a double, but that's not half bad.
+
+Takeaways for next time:
+-Prioritize goals for custom functionality and possibly fastai/incendio/lightning integrations.
+-Trust the process: progress tracking is powerful.
+-Look for better deployment options since I imagine I'll keep bumping up against this issue again and again.
+
+-----------------
+Outstanding Tasks
+-----------------
+
+

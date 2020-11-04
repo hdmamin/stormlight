@@ -1,0 +1,4 @@
+runtime: custom
+env: flex
+instance_class: F4_HIGHMEM
+

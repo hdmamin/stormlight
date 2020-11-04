@@ -7,6 +7,7 @@
 
 I fine-tuned a language model on the first 3 books of The Stormlight Archive (as well as Edgedancer and Warbreaker), then incorporated it into an app that lets users generate Stormlight-esque passages in real time.
 
+![Text Generation Example](data/movies/generation-kaladin-charged.gif)
 ![Text Generation Example](data/movies/generation-odium.gif)
 
 Curious if the Sanderlanche is visible in graph form? The app also lets users explore how sentiment scores vary throughout each book:

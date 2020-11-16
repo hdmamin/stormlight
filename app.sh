@@ -21,6 +21,17 @@ then
 elif [ $1 == "exec" ]
 then
     docker exec -it stormlight-app /bin/bash
+elif [ $1 == "colab" ]
+then
+    git clone https://github.com/hdmamin/stormlight.git
+    pip install -r stormlight/requirements.txt
+    pip install -e stormlight/lib
+    sudo apt update && sudo apt install curl
+    cd stormlight
+    curl -L -o tmp.zip https://www.dropbox.com/sh/y4i0hd2bs7cgfk8/AABjyZj77X-qRWKcoYHBxyvla?dl=1
+    unzip tmp.zip -d data -x /
+    rm tmp.zip
+    pip install pyngrok
 else
     echo 'Invalid command. Options are "build", "stop", "run", and "exec".'
 fi

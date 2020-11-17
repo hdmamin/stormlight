@@ -24,12 +24,12 @@ then
 elif [ $1 == "colab" ]
 then
     pip install -r requirements.txt
-    pip install -e lib
+    pip install -r colab_requirements.txt
+    pip install -e lib --no-deps
     sudo apt update && sudo apt install curl
     curl -L -o tmp.zip https://www.dropbox.com/sh/y4i0hd2bs7cgfk8/AABjyZj77X-qRWKcoYHBxyvla?dl=1
     unzip tmp.zip -d data -x /
     rm tmp.zip
-    pip install pyngrok
 else
     echo 'Invalid command. Options are "build", "stop", "run", and "exec".'
 fi

@@ -1,0 +1,13 @@
+nltk
+numpy==1.17.4
+pandas==0.25.3
+pyngrok==5.0.0
+textblob==0.15.3
+-f https://download.pytorch.org/whl/torch_stable.html
+torch==1.7.0+cu101
+torchvision==0.8.1+cu101
+transformers==2.11.0
+vaderSentiment
+# Install last to keep desired version of pandas.
+htools
+

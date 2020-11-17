@@ -72,7 +72,12 @@ def count(text, term, cased=False, strict=False):
 
 
 def build(locals_):
-    books = cached_load()
+    try:
+        books = cached_load()
+    except FileNotFoundError:
+        st.write('This functionality is unavailable on the public app.')
+        st.stop()
+
     counts = cached_count_words(books)
     st.title('Word Counts')
     st.markdown('Enter a word or phrase in the text box below to find the '

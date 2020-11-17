@@ -7,6 +7,9 @@ from htools import save, spacer
 from stormlight.utils import BREAK
 
 
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
 def load_pretrained_gpt2(mod_name='gpt2', tok_name='gpt2',
                          pad_token='<|endoftext|>', special=(BREAK,)):
     """Quickly load a pretrained GPT2 tokenizer and model, adding special
@@ -42,7 +45,7 @@ def load_pretrained_gpt2(mod_name='gpt2', tok_name='gpt2',
                                             pad_token_id=tok.pad_token_id)
     model.resize_token_embeddings(len(tok))
     model.tie_weights()
-    return tok, model
+    return tok, model.to(DEVICE)
 
 
 def generate(model, tok, x, path, *skip_tokens, max_length=112, min_length=0,
@@ -116,7 +119,7 @@ def generate(model, tok, x, path, *skip_tokens, max_length=112, min_length=0,
                                  if skip_tokens else None)
     # Update after so defaults are overwritten if user provides value.
     kwargs_.update(kwargs)
-    res = model.generate(x, **kwargs_)[0].cpu().numpy().tolist()
+    res = model.generate(x.to(DEVICE), **kwargs_)[0].cpu().numpy().tolist()
     old, new = map(partial(tok.decode, skip_special_tokens=skip_special),
                    (res[:seq_len], res[seq_len:]))
     if verbose:

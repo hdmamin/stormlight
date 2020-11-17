@@ -23,7 +23,17 @@ More examples can be found in the `data/movies` directory.
 
 ## Running the App
 
-The model is too large for any of the free deployment options I found and this is just a hobby project, so if you want to use the app you'll have to do it locally. First, clone this repo by entering the following command in your terminal:
+The model is too large for any of the free deployment options I found and this is just a hobby project, so if you want to use the app you have two options:
+
+Option 1. Run the app in Google Colab
+
+I put together a notebook that makes the app temporarily available through Google Colab (this is the easiest way to play with the text generation model for non-technical users). Click the link below and follow the instructions (you may need to log in to a Google account first):
+
+[Open in Colab](https://colab.research.google.com/github/hdmamin/stormlight/blob/master/notebooks/colab-app.ipynb)
+
+Option 2. Run the app locally. 
+
+First, clone this repo by entering the following command in your terminal:
 
 ```
 cd && git clone https://github.com/hdmamin/stormlight.git && cd stormlight

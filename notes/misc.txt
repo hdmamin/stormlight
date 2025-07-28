@@ -374,3 +374,6 @@ As a reminder, we should first start a tmux session, then run the app either wit
 
 note: I noticed the app.sh "build" command checks if the data directory exists before deciding whether to download data. I should check if this causes the data to be downloaded on every build or if it's somehow maintained.
 
+7/27/2025
+---------
+-deleted some models to clean up space on mac, only v5 is left
